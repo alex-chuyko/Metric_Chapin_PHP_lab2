@@ -19,8 +19,8 @@ type
   end;
 
 type
-  arrString = array[1..50] of string;
-  arrInteger = array[1..50] of integer;
+  arrString = array[1..500] of string;
+  arrInteger = array[1..500] of integer;
 
 const
   coeffP = 1;
@@ -109,7 +109,7 @@ begin
   OpenDialog.Title:= '???????? ???? ??? ????????';
   OpenDialog.InitialDir := GetCurrentDir;
   OpenDialog.Options := [ofFileMustExist];
-  OpenDialog.Filter := 'Text file|*.txt';
+  OpenDialog.Filter := 'Text file|*.*';
   OpenDialog.FilterIndex := 1;
   if OpenDialog.Execute then
   begin
@@ -306,7 +306,7 @@ begin
 
 
 //////////////// ? : \\\\\\\\\\\\\\\\\\\\\\\\\\\
-  RegExp.RegEx := '\?';
+  RegExp.RegEx := '(?<!\<)\?(?!\>)';
   RegExp.Subject := CodeString;
   RegExp.Compile;
   tempString := '';
@@ -329,6 +329,7 @@ begin
       numberClosingBrackets := 0;
     until not RegExp.MatchAgain;
 
+    RegExp1 := TPerlRegEx.Create;
     RegExp1.RegEx := '(?<=\$).*?\w*(?=\s*)';
     RegExp1.Subject := tempString;
     if RegExp1.Match then
