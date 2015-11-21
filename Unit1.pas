@@ -23,11 +23,10 @@ type
   arrInteger = array[1..500] of integer;
 
 const
-  coeffP = 1;
-  coeffM = 2;
-  coeffC = 3;
-  coeffT = 0.5;
-  empStr = '';
+  coeffForP = 1;
+  coeffForM = 2;
+  coeffForC = 3;
+  coeffForT = 0.5;
 
 var
   Form1: TForm1;
@@ -38,7 +37,7 @@ implementation
 {$R *.dfm}
 
 /////////////////////// Additional Routines \\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-procedure deleteComments1(var CodeString: string);
+procedure deleteCommentsOneString(var CodeString: string);
 var
   LengthDeleteRow : integer;
   RegExp : TPerlRegEx;
@@ -58,13 +57,13 @@ begin
   end;
 end;
 
-procedure deleteComments2(var CodeString: string);
+procedure deleteCommentsMultiString(var CodeString: string);
 var
   LengthDeleteRow: integer;
   RegExp : TPerlRegEx;
 begin
   RegExp := TPerlRegEx.Create;
-  RegExp.Options := [preMultiLine];
+  RegExp.Options := [preSingleLine];
   RegExp.RegEx := '\/\*.*?\*\/';
   RegExp.Subject := CodeString;
   RegExp.Compile;
@@ -78,7 +77,7 @@ begin
   end;
 end;
 
-procedure deleteString1(var CodeString: string);
+procedure deleteStringWithOneHatch(var CodeString: string);
 var
   LengthDeleteRow: integer;
   RegExp : TPerlRegEx;
@@ -98,7 +97,7 @@ begin
   end;
 end;
 
-procedure deleteString2(var CodeString: string);
+procedure deleteStringWithTwoHatch(var CodeString: string);
 var
   LengthDeleteRow: integer;
   RegExp : TPerlRegEx;
@@ -126,7 +125,7 @@ var
 begin
   FlagInput:= True;
   OpenDialog := TOpenDialog.Create(OpenDialog);
-  OpenDialog.Title:= '???????? ???? ??? ????????';
+  OpenDialog.Title:= 'Input File';
   OpenDialog.InitialDir := GetCurrentDir;
   OpenDialog.Options := [ofFileMustExist];
   OpenDialog.Filter := 'Text file|*.*';
@@ -137,17 +136,17 @@ begin
   end
   else
     begin
-      Application.MessageBox('????? ????? ??? ???????? ??????????!', '??????????????!');
+      Application.MessageBox('Open file stop!', 'Warning!');
       FlagInput:=False;
     end;
   if FlagInput then
   begin
     AssignFile(input, File1Name);
     reset(input);
-    while not Eof do
+    while not Eof(input) do
     begin
       readln(CodeString);
-      Form1.mmoInput.Text := Form1.mmoInput.Text + CodeString + #13 + #10;
+      Form1.mmoInput.Text := Form1.mmoInput.Text + CodeString + #13#10;
     end;
     CloseFile(input);
   end;
@@ -395,11 +394,11 @@ begin
   end;
 end;
 
-function searchParazitVariable(CodeString : string): integer;
+function searchParazitVariable(CodeString : string; arrayModVariable : arrString; countArrayModVariable : integer): integer;
 var
   RegExp: TPerlRegEx;
   i, Quantity, NumberParazitVariables, LengthDeleteRow: integer;
-  tempString : string;
+  tempString, nameVariable : string;
   arrayParazitVariables : arrString;
   variableNumberMeetings : arrInteger;
 begin
@@ -412,8 +411,12 @@ begin
   if RegExp.Match then
   begin
     repeat
-      inc(Quantity);
-      arrayParazitVariables[Quantity] := RegExp.MatchedText;
+      nameVariable := RegExp.MatchedText;
+      //if (checkRepeatVariables(arrayModVariable, countArrayModVariable, nameVariable)) then
+      //begin
+        inc(Quantity);
+        arrayParazitVariables[Quantity] := nameVariable;
+      //end;
     until not RegExp.MatchAgain;
   end;
   checkNumberOfMeetingsVariables(arrayParazitVariables, Quantity, CodeString, variableNumberMeetings);
@@ -506,25 +509,27 @@ var
 begin
   mmoInput.Clear;
   mmoOutput.Clear;
+  QuantityVariablesForOutput := 0;
   P := 0; M := 0; C := 0; T := 0; Q := 0;
 
   readFromFile(CodeString);
-  deleteString1(CodeString);
-  deleteComments1(CodeString);
+  deleteCommentsMultiString(CodeString);
+  deleteCommentsOneString(CodeString);
+  deleteStringWithOneHatch(CodeString);
   P := P + searchVariableForOutput(CodeString, arrayVariableForOutput, QuantityVariablesForOutput);
-  deleteString2(CodeString);
+  deleteStringWithTwoHatch(CodeString);
 
   for i:= 1 to length(CodeString) do
     if (CodeString[i] = #13) or (CodeString[i] = #10) then
       CodeString[i] := #0;
-  deleteComments2(CodeString);
+  //deleteComments2(CodeString);
 
   M := M + searchModVariable(CodeString, arrayModVariable, countArrayModVariable);
   P := P + searchVariableNotMod(CodeString, arrayModVariable, countArrayModVariable, arrayVariableForOutput, QuantityVariablesForOutput);
-  T := T + searchParazitVariable(CodeString);
+  T := T + searchParazitVariable(CodeString, arrayModVariable, countArrayModVariable);
   C := C + searchControlVariable(CodeString);
 
-  Q := coeffP * P + coeffM * M + coeffC * C + coeffT * T;
+  Q := coeffForP * P + coeffForM * M + coeffForC * C + coeffForT * T;
   mmoOutput.Text := mmoOutput.Text + 'P = ' + IntToStr(P) + '; ' + 'M = ' + IntToStr(M) + '; ' + 'C = ' + IntToStr(C) + '; ' + 'T = ' + IntToStr(T) + #13 + #10 + 'Q = ' + FloatToStr(Q);
 end;
 
