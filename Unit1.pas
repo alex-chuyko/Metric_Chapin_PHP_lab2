@@ -65,7 +65,7 @@ var
 begin
   RegExp := TPerlRegEx.Create;
   RegExp.Options := [preMultiLine];
-  RegExp.RegEx := '\/\*.*?\*\/';                            
+  RegExp.RegEx := '\/\*.*?\*\/';
   RegExp.Subject := CodeString;
   RegExp.Compile;
   LengthDeleteRow := 0;
@@ -78,14 +78,34 @@ begin
   end;
 end;
 
-procedure deleteString(var CodeString: string);
+procedure deleteString1(var CodeString: string);
 var
   LengthDeleteRow: integer;
   RegExp : TPerlRegEx;
 begin
   RegExp := TPerlRegEx.Create;
   RegExp.Options := [preMultiLine];
-  RegExp.RegEx := '\".*?\"';                            
+  RegExp.RegEx := '\''.*?\''';                      //(\''.*?\'')|(\".*?\")
+  RegExp.Subject := CodeString;
+  RegExp.Compile;
+  LengthDeleteRow := 0;
+  if RegExp.Match then
+  begin
+    repeat
+      delete(CodeString, RegExp.MatchedOffset - LengthDeleteRow, RegExp.MatchedLength);
+      LengthDeleteRow := LengthDeleteRow + RegExp.MatchedLength;
+    until not RegExp.MatchAgain;
+  end;
+end;
+
+procedure deleteString2(var CodeString: string);
+var
+  LengthDeleteRow: integer;
+  RegExp : TPerlRegEx;
+begin
+  RegExp := TPerlRegEx.Create;
+  RegExp.Options := [preMultiLine];
+  RegExp.RegEx := '\".*?\"';
   RegExp.Subject := CodeString;
   RegExp.Compile;
   LengthDeleteRow := 0;
@@ -158,7 +178,7 @@ var
 begin
   Quantity := 0;
   RegExp := TPerlRegEx.Create;
-  RegExp.RegEx := '(?<=\$)\w*(?=\s*\=)';
+  RegExp.RegEx := '(?<=\$)\w*(?=\s*\=\s+)';
   RegExp.Subject := CodeString;
   RegExp.Compile;
   if RegExp.Match then
@@ -210,7 +230,7 @@ begin
 //////////////// SWITCH \\\\\\\\\\\\\\\\\\\\\\\\\\\
 
 //////////////// FOR \\\\\\\\\\\\\\\\\\\\\\\\\\\
-  RegExp.RegEx := '((?<=\sfor\s\(\$)|(?<=\sfor\(\$))\w+';
+  RegExp.RegEx := '((?<=\sfor\s\(\$)|(?<=\sfor\(\b\$))\w+';
   RegExp.Compile;
   if RegExp.Match then
   begin
@@ -363,7 +383,7 @@ begin
   for i:=1 to Quantity do
   begin
     variableNumberMeetings[i] := 0;
-    RegEx.RegEx := arrayParazitVariables[i];
+    RegEx.RegEx := '(?<=\$|\.)' + arrayParazitVariables[i];
     RegEx.Compile;
     if RegEx.Match then
     begin
@@ -406,16 +426,14 @@ end;
 
 
 /////////////////// search Variables To Output and Calc. \\\\\\\\\\\\\\\\\\\\
-function searchVariableForOutput(CodeString: string; arrayModVariable : arrString; countArrayModVariable : integer): integer;
+function searchVariableForOutput(CodeString: string; var arrayVariableForOutput : arrString; var Quantity : integer): integer;
 var
   RegExp, RegExp1 : TPerlRegEx;
   nameVariable : string;
-  Quantity : integer;
-  arrayVariableForOutput : arrString;
 begin
   Quantity := 0;
   RegExp := TPerlRegEx.Create;
-  RegExp.RegEx := '\s*(\=|\+\=|\*\=|\-\=|\/\=|echo\s)[\$*\w\s\\\/\*\+\*\-\(\)]*\;';
+  RegExp.RegEx := '(?<=\becho\s\"|\bprint\s\"|\bprint\s|\becho\s).*?\;';
   RegExp.Subject := CodeString;
   RegExp.Compile;
   if RegExp.Match then
@@ -429,7 +447,7 @@ begin
       begin
         repeat
           nameVariable := RegExp1.MatchedText;
-          if (checkRepeatVariables(arrayModVariable, countArrayModVariable, nameVariable)) and (checkRepeatVariables(arrayVariableForOutput, Quantity, nameVariable)) then
+          if (checkRepeatVariables(arrayVariableForOutput, Quantity, nameVariable)) then
           begin
             inc(Quantity);
             arrayVariableForOutput[Quantity] := nameVariable;
@@ -440,15 +458,49 @@ begin
   end;
   searchVariableForOutput := Quantity;
 end;
+
+function searchVariableNotMod(CodeString: string; arrayModVariable : arrString; countArrayModVariable : integer; arrayVariableForOutput : arrString; QuantityVariablesForOutput : integer): integer;
+var
+  RegExp, RegExp1 : TPerlRegEx;
+  nameVariable : string;
+  Quantity : integer;
+begin
+  Quantity := QuantityVariablesForOutput;
+  RegExp := TPerlRegEx.Create;
+  RegExp.RegEx := '\s*(\=|\+\=|\*\=|\-\=|\/\=)[\$*\w\s\\\/\*\+\*\-\(\)]*\;';
+  RegExp.Subject := CodeString;
+  RegExp.Compile;
+  if RegExp.Match then
+  begin
+    RegExp1 := TPerlRegEx.Create;
+    RegExp1.RegEx := '(?<=\$)\w*(?=\s*)';
+    RegExp1.Compile;
+    repeat
+      RegExp1.Subject := RegExp.MatchedText;
+      if RegExp1.Match then
+      begin
+        repeat
+          nameVariable := RegExp1.MatchedText;
+          if (checkRepeatVariables(arrayModVariable, countArrayModVariable, nameVariable)) and (checkRepeatVariables(arrayVariableForOutput, QuantityVariablesForOutput, nameVariable)) then
+          begin
+            inc(QuantityVariablesForOutput);
+            arrayVariableForOutput[QuantityVariablesForOutput] := nameVariable;
+          end;
+        until not RegExp1.MatchAgain;
+      end;
+    until not RegExp.MatchAgain;
+  end;
+  searchVariableNotMod := QuantityVariablesForOutput - Quantity;
+end;
 ////////////////////////////\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
 
 
 procedure TForm1.btnRunClick(Sender: TObject);
 var
-  i, countSubroutines, countArrayModVariable: integer;
+  i, countSubroutines, countArrayModVariable, QuantityVariablesForOutput: integer;
   CodeString: string;
-  arraySubroutines, arrayModVariable: arrString;
+  arraySubroutines, arrayModVariable, arrayVariableForOutput: arrString;
   P, M, C, T: integer;
   Q : Extended;
 begin
@@ -457,8 +509,10 @@ begin
   P := 0; M := 0; C := 0; T := 0; Q := 0;
 
   readFromFile(CodeString);
-  deleteString(CodeString);
+  deleteString1(CodeString);
   deleteComments1(CodeString);
+  P := P + searchVariableForOutput(CodeString, arrayVariableForOutput, QuantityVariablesForOutput);
+  deleteString2(CodeString);
 
   for i:= 1 to length(CodeString) do
     if (CodeString[i] = #13) or (CodeString[i] = #10) then
@@ -466,7 +520,7 @@ begin
   deleteComments2(CodeString);
 
   M := M + searchModVariable(CodeString, arrayModVariable, countArrayModVariable);
-  P := P + searchVariableForOutput(CodeString, arrayModVariable, countArrayModVariable);
+  P := P + searchVariableNotMod(CodeString, arrayModVariable, countArrayModVariable, arrayVariableForOutput, QuantityVariablesForOutput);
   T := T + searchParazitVariable(CodeString);
   C := C + searchControlVariable(CodeString);
 
